@@ -44,6 +44,7 @@
 #ifndef __CPU_O3_CPU_HH__
 #define __CPU_O3_CPU_HH__
 
+#include <fstream>
 #include <iostream>
 #include <list>
 #include <queue>
@@ -76,8 +77,7 @@
 namespace gem5
 {
 
-template <class>
-class Checker;
+template <class> class Checker;
 class ThreadContext;
 
 class Checkpoint;
@@ -100,6 +100,27 @@ class CPU : public BaseCPU
 
     friend class ThreadContext;
 
+    std::ofstream loadLatFile;
+    uint64_t lastScaleTick = 0;
+    int scaleDelta = 0;
+    const int dvfsCycleFrequency = 8;
+    int cyclesSinceDVFS = 0;
+
+    void extScaleDVFSOnLoad(int delta);
+    void extDVFSCheck();
+
+    struct DVFSStats : public statistics::Group
+    {
+        DVFSStats(CPU *cpu);
+
+        statistics::Scalar dvfsCallCount;
+        statistics::Scalar voltageTimeProduct;
+        statistics::Scalar frequencyTimeProduct;
+        statistics::Scalar totalTime;
+        statistics::Formula averageVoltage;
+        statistics::Formula averageFrequency;
+    } dvfsStats;
+
   public:
     enum Status
     {
@@ -120,7 +141,6 @@ class CPU : public BaseCPU
     Status _status;
 
   private:
-
     /** The tick event used for scheduling CPU ticks. */
     EventFunctionWrapper tickEvent;
 
@@ -131,18 +151,20 @@ class CPU : public BaseCPU
     void
     scheduleTickEvent(Cycles delay)
     {
-        if (tickEvent.squashed())
+        if (tickEvent.squashed()) {
             reschedule(tickEvent, clockEdge(delay));
-        else if (!tickEvent.scheduled())
+        } else if (!tickEvent.scheduled()) {
             schedule(tickEvent, clockEdge(delay));
+        }
     }
 
     /** Unschedule tick event, regardless of its current state. */
     void
     unscheduleTickEvent()
     {
-        if (tickEvent.scheduled())
+        if (tickEvent.scheduled()) {
             tickEvent.squash();
+        }
     }
 
     /**
@@ -175,18 +197,17 @@ class CPU : public BaseCPU
   public:
     /** Constructs a CPU with the given parameters. */
     CPU(const BaseO3CPUParams &params);
+    ~CPU();
 
     ProbePointArg<PacketPtr> *ppInstAccessComplete;
-    ProbePointArg<std::pair<DynInstPtr, PacketPtr> > *ppDataAccessComplete;
+    ProbePointArg<std::pair<DynInstPtr, PacketPtr>> *ppDataAccessComplete;
 
     /** Register probe points. */
     void regProbePoints() override;
 
     void
     demapPage(Addr vaddr, uint64_t asn)
-    {
-        mmu->demapPage(vaddr, asn);
-    }
+    { mmu->demapPage(vaddr, asn); }
 
     /** Ticks CPU, calling tick() on each stage, and checking the overall
      *  activity to see if the CPU should deschedule itself.
@@ -201,9 +222,7 @@ class CPU : public BaseCPU
     /** Returns the Number of Active Threads in the CPU */
     int
     numActiveThreads()
-    {
-        return activeThreads.size();
-    }
+    { return activeThreads.size(); }
 
     /** Add Thread to Active Threads List */
     void activateThread(ThreadID tid);
@@ -238,7 +257,9 @@ class CPU : public BaseCPU
     void updateThreadPriority();
 
     /** Is the CPU draining? */
-    bool isDraining() const { return drainState() == DrainState::Draining; }
+    bool
+    isDraining() const
+    { return drainState() == DrainState::Draining; }
 
     void serializeThread(CheckpointOut &cp, ThreadID tid) const override;
     void unserializeThread(CheckpointIn &cp, ThreadID tid) override;
@@ -284,14 +305,14 @@ class CPU : public BaseCPU
     void verifyMemoryMode() const override;
 
     /** Get the current instruction sequence number, and increment it. */
-    InstSeqNum getAndIncrementInstSeq() { return globalSeqNum++; }
+    InstSeqNum
+    getAndIncrementInstSeq()
+    { return globalSeqNum++; }
 
     /** Get the current fetch target sequence number, and increment it. */
     InstSeqNum
     getAndIncrementFTSeq()
-    {
-        return globalFTSeqNum++;
-    }
+    { return globalFTSeqNum++; }
 
     /** Traps to handle given fault. */
     void trap(const Fault &fault, ThreadID tid, const StaticInstPtr &inst);
@@ -303,7 +324,9 @@ class CPU : public BaseCPU
     void processInterrupts(const Fault &interrupt);
 
     /** Halts the CPU. */
-    void halt() { panic("Halt not implemented!\n"); }
+    void
+    halt()
+    { panic("Halt not implemented!\n"); }
 
     /** Register accessors.  Index refers to the physical register index. */
 
@@ -502,21 +525,19 @@ class CPU : public BaseCPU
 
   public:
     /** Records that there was time buffer activity this cycle. */
-    void activityThisCycle() { activityRec.activity(); }
+    void
+    activityThisCycle()
+    { activityRec.activity(); }
 
     /** Changes a stage's status to active within the activity recorder. */
     void
     activateStage(const StageIdx idx)
-    {
-        activityRec.activateStage(idx);
-    }
+    { activityRec.activateStage(idx); }
 
     /** Changes a stage's status to inactive within the activity recorder. */
     void
     deactivateStage(const StageIdx idx)
-    {
-        activityRec.deactivateStage(idx);
-    }
+    { activityRec.deactivateStage(idx); }
 
     /** Wakes the CPU, rescheduling the CPU if it's not already active. */
     void wakeCPU();
@@ -538,9 +559,7 @@ class CPU : public BaseCPU
     /** Returns a pointer to a thread context. */
     gem5::ThreadContext *
     tcBase(ThreadID tid)
-    {
-        return thread[tid]->getTC();
-    }
+    { return thread[tid]->getTC(); }
 
     /** The global sequence number counter. */
     InstSeqNum globalSeqNum;
@@ -577,29 +596,25 @@ class CPU : public BaseCPU
 
     /** CPU pushRequest function, forwards request to LSQ. */
     Fault
-    pushRequest(const DynInstPtr& inst, bool isLoad, uint8_t *data,
+    pushRequest(const DynInstPtr &inst, bool isLoad, uint8_t *data,
                 unsigned int size, Addr addr, Request::Flags flags,
                 uint64_t *res, AtomicOpFunctorPtr amo_op = nullptr,
-                const std::vector<bool>& byte_enable=std::vector<bool>())
+                const std::vector<bool> &byte_enable = std::vector<bool>())
 
     {
-        return iew.ldstQueue.pushRequest(inst, isLoad, data, size, addr,
-                flags, res, std::move(amo_op), byte_enable);
+        return iew.ldstQueue.pushRequest(inst, isLoad, data, size, addr, flags,
+                                         res, std::move(amo_op), byte_enable);
     }
 
     /** Used by the fetch unit to get a hold of the instruction port. */
     Port &
     getInstPort() override
-    {
-        return fetch.getInstPort();
-    }
+    { return fetch.getInstPort(); }
 
     /** Get the dcache port (used to find block size for translations). */
     Port &
     getDataPort() override
-    {
-        return iew.ldstQueue.getDataPort();
-    }
+    { return iew.ldstQueue.getDataPort(); }
 
     struct CPUStats : public statistics::Group
     {
