@@ -1,0 +1,3 @@
+/home/thomas/coding/gem5/testprogram/CMakeFiles/marker.dir
+/home/thomas/coding/gem5/testprogram/CMakeFiles/edit_cache.dir
+/home/thomas/coding/gem5/testprogram/CMakeFiles/rebuild_cache.dir

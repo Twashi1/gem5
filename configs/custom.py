@@ -28,6 +28,11 @@ from gem5.resources.resource import BinaryResource
 from m5.stats import periodicStatDump, dump, reset
 from m5.objects import VoltageDomain, SrcClockDomain, DVFSHandler
 import m5
+from gem5.simulate.exit_event import ExitEvent
+
+def marker(val):
+    print("marker value:", val)
+    yield False
 
 # TODO: in order to be more in line with the original paper, set L2 size to a MB, ensure these values are being read as kilobytes, not kilibits; seems like its converting to KiB
 
@@ -70,32 +75,18 @@ board = SimpleBoard(
 )
 
 board.set_se_binary_workload(
-    binary=BinaryResource(local_path="./covariance")
+    binary=BinaryResource(local_path="./testprogram/marker")
 )
 
-# Might be unrealistically small transition latency, but this is not our approach, so
-# we can let it be better than what is realistic
 board.dvfs_handler = DVFSHandler(domains=[clock_domain], enable=True, transition_latency="50ns")
-
-dump_interval = 10_000_000_000
 
 simulator = Simulator(
     board=board,
 )
 
-while True:
-    # simulate up to interval_ticks from current tick
-    simulator.run(max_ticks=dump_interval)
-    
-    # dump stats for this interval
-    dump()
-    reset()
-    
-    print(f"Interval ended at tick {m5.curTick()}")
+simulator.run()
 
-    event = simulator.get_last_exit_event_cause()
+print(f"Interval ended at tick {m5.curTick()}")
+
+event = simulator.get_last_exit_event_cause()
     
-    if not event.startswith("simulate() limit reached"): 
-        # simulation finished
-        print(event)
-        break

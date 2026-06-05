@@ -1,0 +1,1 @@
+/usr/bin/cc -static CMakeFiles/marker.dir/main.c.o -o marker 

@@ -109,8 +109,9 @@ arm(ThreadContext *tc)
     DPRINTF(PseudoInst, "pseudo_inst::arm()\n");
 
     auto *workload = tc->getSystemPtr()->workload;
-    if (workload)
+    if (workload) {
         workload->recordArm();
+    }
 }
 
 void
@@ -147,7 +148,7 @@ quiesceTime(ThreadContext *tc)
     DPRINTF(PseudoInst, "pseudo_inst::quiesceTime()\n");
 
     return (tc->readLastActivate() - tc->readLastSuspend()) /
-        sim_clock::as_int::ns;
+           sim_clock::as_int::ns;
 }
 
 uint64_t
@@ -165,13 +166,15 @@ wakeCPU(ThreadContext *tc, uint64_t cpuid)
 
     if (sys->threads.size() <= cpuid) {
         warn("pseudo_inst::wakeCPU(%i), cpuid greater than number of contexts"
-             "(%i)\n", cpuid, sys->threads.size());
+             "(%i)\n",
+             cpuid, sys->threads.size());
         return;
     }
 
     ThreadContext *other_tc = sys->threads[cpuid];
-    if (other_tc->status() == ThreadContext::Suspended)
+    if (other_tc->status() == ThreadContext::Suspended) {
         other_tc->activate();
+    }
 }
 
 void
@@ -186,8 +189,8 @@ m5exit(ThreadContext *tc, Tick delay)
 
 // m5sum is for sanity checking the gem5 op interface.
 uint64_t
-m5sum(ThreadContext *tc, uint64_t a, uint64_t b, uint64_t c,
-                         uint64_t d, uint64_t e, uint64_t f)
+m5sum(ThreadContext *tc, uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+      uint64_t e, uint64_t f)
 {
     DPRINTF(PseudoInst, "pseudo_inst::m5sum(%#x, %#x, %#x, %#x, %#x, %#x)\n",
             a, b, c, d, e, f);
@@ -215,40 +218,45 @@ loadsymbol(ThreadContext *tc)
     std::string buffer;
     std::ifstream file(filename.c_str());
 
-    if (!file)
+    if (!file) {
         fatal("file error: Can't open symbol table file %s\n", filename);
+    }
 
     while (!file.eof()) {
         getline(file, buffer);
 
-        if (buffer.empty())
+        if (buffer.empty()) {
             continue;
+        }
 
         std::string::size_type idx = buffer.find(' ');
-        if (idx == std::string::npos)
+        if (idx == std::string::npos) {
             continue;
+        }
 
         std::string address = "0x" + buffer.substr(0, idx);
         eat_white(address);
-        if (address.empty())
+        if (address.empty()) {
             continue;
+        }
 
         // Skip over letter and space
         std::string symbol = buffer.substr(idx + 3);
         eat_white(symbol);
-        if (symbol.empty())
+        if (symbol.empty()) {
             continue;
+        }
 
         Addr addr;
-        if (!to_number(address, addr))
+        if (!to_number(address, addr)) {
             continue;
+        }
 
         if (!tc->getSystemPtr()->workload->insertSymbol(
-            { loader::Symbol::Binding::Global,
-              loader::Symbol::SymbolType::Function, symbol, addr })) {
-                continue;
-              }
-
+                {loader::Symbol::Binding::Global,
+                 loader::Symbol::SymbolType::Function, symbol, addr})) {
+            continue;
+        }
 
         DPRINTF(Loader, "Loaded symbol: %s @ %#llx\n", symbol, addr);
     }
@@ -258,8 +266,8 @@ loadsymbol(ThreadContext *tc)
 void
 addsymbol(ThreadContext *tc, GuestAddr addr, GuestAddr symbolAddr)
 {
-    DPRINTF(PseudoInst, "pseudo_inst::addsymbol(0x%x, 0x%x)\n",
-            addr.addr, symbolAddr.addr);
+    DPRINTF(PseudoInst, "pseudo_inst::addsymbol(0x%x, 0x%x)\n", addr.addr,
+            symbolAddr.addr);
 
     std::string symbol;
     TranslatingPortProxy fs_proxy(tc);
@@ -271,20 +279,18 @@ addsymbol(ThreadContext *tc, GuestAddr addr, GuestAddr symbolAddr)
     DPRINTF(Loader, "Loaded symbol: %s @ %#llx\n", symbol, addr.addr);
 
     tc->getSystemPtr()->workload->insertSymbol(
-        { loader::Symbol::Binding::Global,
-          loader::Symbol::SymbolType::Function, symbol, addr.addr }
-    );
-    loader::debugSymbolTable.insert(
-        { loader::Symbol::Binding::Global,
-          loader::Symbol::SymbolType::Function, symbol, addr.addr }
-    );
+        {loader::Symbol::Binding::Global, loader::Symbol::SymbolType::Function,
+         symbol, addr.addr});
+    loader::debugSymbolTable.insert({loader::Symbol::Binding::Global,
+                                     loader::Symbol::SymbolType::Function,
+                                     symbol, addr.addr});
 }
 
 uint64_t
 initParam(ThreadContext *tc, uint64_t key_str1, uint64_t key_str2)
 {
     DPRINTF(PseudoInst, "pseudo_inst::initParam() key:%s%s\n",
-        (char *)&key_str1, (char *)&key_str2);
+            (char *)&key_str1, (char *)&key_str2);
 
     // The key parameter string is passed in via two 64-bit registers. We copy
     // out the characters from the 64-bit integer variables here, and
@@ -293,30 +299,30 @@ initParam(ThreadContext *tc, uint64_t key_str1, uint64_t key_str2)
     char key[len];
     std::memset(key, '\0', len);
 
-    std::array<uint64_t, 2> key_regs = {{ key_str1, key_str2 }};
+    std::array<uint64_t, 2> key_regs = {{key_str1, key_str2}};
     key_regs = letoh(key_regs);
     std::memcpy(key, key_regs.data(), sizeof(key_regs));
 
     // Check key parameter to figure out what to return.
     const std::string key_str(key);
-    if (key == DEFAULT)
+    if (key == DEFAULT) {
         return tc->getCpuPtr()->system->init_param;
-    else if (key == DIST_RANK)
+    } else if (key == DIST_RANK) {
         return DistIface::rankParam();
-    else if (key == DIST_SIZE)
+    } else if (key == DIST_SIZE) {
         return DistIface::sizeParam();
-    else
+    } else {
         panic("Unknown key for initparam pseudo instruction:\"%s\"", key_str);
+    }
 }
-
 
 void
 resetstats(ThreadContext *tc, Tick delay, Tick period)
 {
     DPRINTF(PseudoInst, "pseudo_inst::resetstats(%i, %i)\n", delay, period);
-    if (!tc->getCpuPtr()->params().do_statistics_insts)
+    if (!tc->getCpuPtr()->params().do_statistics_insts) {
         return;
-
+    }
 
     Tick when = curTick() + delay * sim_clock::as_int::ns;
     Tick repeat = period * sim_clock::as_int::ns;
@@ -328,9 +334,9 @@ void
 dumpstats(ThreadContext *tc, Tick delay, Tick period)
 {
     DPRINTF(PseudoInst, "pseudo_inst::dumpstats(%i, %i)\n", delay, period);
-    if (!tc->getCpuPtr()->params().do_statistics_insts)
+    if (!tc->getCpuPtr()->params().do_statistics_insts) {
         return;
-
+    }
 
     Tick when = curTick() + delay * sim_clock::as_int::ns;
     Tick repeat = period * sim_clock::as_int::ns;
@@ -342,10 +348,10 @@ void
 dumpresetstats(ThreadContext *tc, Tick delay, Tick period)
 {
     DPRINTF(PseudoInst, "pseudo_inst::dumpresetstats(%i, %i)\n", delay,
-        period);
-    if (!tc->getCpuPtr()->params().do_statistics_insts)
+            period);
+    if (!tc->getCpuPtr()->params().do_statistics_insts) {
         return;
-
+    }
 
     Tick when = curTick() + delay * sim_clock::as_int::ns;
     Tick repeat = period * sim_clock::as_int::ns;
@@ -357,8 +363,9 @@ void
 m5checkpoint(ThreadContext *tc, Tick delay, Tick period)
 {
     DPRINTF(PseudoInst, "pseudo_inst::m5checkpoint(%i, %i)\n", delay, period);
-    if (!tc->getCpuPtr()->params().do_checkpoint_insts)
+    if (!tc->getCpuPtr()->params().do_checkpoint_insts) {
         return;
+    }
 
     if (DistIface::readyToCkpt(delay, period)) {
         Tick when = curTick() + delay * sim_clock::as_int::ns;
@@ -381,18 +388,21 @@ readfile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset)
     uint64_t result = 0;
 
     int fd = ::open(file.c_str(), O_RDONLY, 0);
-    if (fd < 0)
+    if (fd < 0) {
         panic("could not open file %s\n", file);
+    }
 
-    if (::lseek(fd, offset, SEEK_SET) < 0)
+    if (::lseek(fd, offset, SEEK_SET) < 0) {
         panic("could not seek: %s", strerror(errno));
+    }
 
     char *buf = new char[len];
     char *p = buf;
     while (len > 0) {
         int bytes = ::read(fd, p, len);
-        if (bytes <= 0)
+        if (bytes <= 0) {
             break;
+        }
 
         p += bytes;
         result += bytes;
@@ -405,13 +415,13 @@ readfile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset)
     PortProxy &virt_proxy = FullSystem ? fs_proxy : se_proxy;
 
     virt_proxy.writeBlob(vaddr.addr, buf, result);
-    delete [] buf;
+    delete[] buf;
     return result;
 }
 
 uint64_t
 writefile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset,
-            GuestAddr filename_addr)
+          GuestAddr filename_addr)
 {
     DPRINTF(PseudoInst, "pseudo_inst::writefile(0x%x, 0x%x, 0x%x, 0x%x)\n",
             vaddr.addr, len, offset, filename_addr.addr);
@@ -432,13 +442,14 @@ writefile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset,
         // do not truncate file if offset is non-zero
         // (ios::in flag is required as well to keep the existing data
         //  intact, otherwise existing data will be zeroed out.)
-        out = simout.open(filename,
-                std::ios::in | std::ios::out | std::ios::binary, true);
+        out = simout.open(
+            filename, std::ios::in | std::ios::out | std::ios::binary, true);
     }
 
     std::ostream *os(out->stream());
-    if (!os)
+    if (!os) {
         panic("could not open file %s\n", filename);
+    }
 
     if (offset != 0) {
         // seek to offset
@@ -450,12 +461,13 @@ writefile(ThreadContext *tc, GuestAddr vaddr, uint64_t len, uint64_t offset,
 
     virt_proxy.readBlob(vaddr.addr, buf, len);
     os->write(buf, len);
-    if (os->fail() || os->bad())
+    if (os->fail() || os->bad()) {
         panic("Error while doing writefile!\n");
+    }
 
     simout.close(out);
 
-    delete [] buf;
+    delete[] buf;
 
     return len;
 }
@@ -497,6 +509,7 @@ void
 workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid)
 {
     DPRINTF(PseudoInst, "pseudo_inst::workbegin(%i, %i)\n", workid, threadid);
+    DPRINTF(PseudoInst, "Successfully invoked some arbitrary event?");
     System *sys = tc->getSystemPtr();
     const System::Params &params = sys->params();
 
@@ -612,8 +625,9 @@ void
 m5Hypercall(ThreadContext *tc, uint64_t hypercall_id)
 {
     DPRINTF(PseudoInst, "pseudo_inst::m5Hypercall(%i)\n", hypercall_id);
-    exitSimLoopWithHypercall("m5_hypercall instruction encountered", 0,
-    curTick(),0, std::map<std::string, std::string>(), hypercall_id, true);
+    exitSimLoopWithHypercall(
+        "m5_hypercall instruction encountered", 0, curTick(), 0,
+        std::map<std::string, std::string>(), hypercall_id, true);
 }
 
 } // namespace pseudo_inst
