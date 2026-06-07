@@ -108,6 +108,7 @@ class CPU : public BaseCPU
 
     void extScaleDVFSOnLoad(int delta);
     void extDVFSCheck();
+    void extChangeDVFSLevel(int newLevel);
 
     struct DVFSStats : public statistics::Group
     {

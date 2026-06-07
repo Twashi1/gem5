@@ -54,6 +54,7 @@
 #include "base/debug.hh"
 #include "base/output.hh"
 #include "cpu/base.hh"
+#include "cpu/o3/cpu.hh"
 #include "cpu/thread_context.hh"
 #include "debug/Loader.hh"
 #include "debug/Quiesce.hh"
@@ -509,7 +510,6 @@ void
 workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid)
 {
     DPRINTF(PseudoInst, "pseudo_inst::workbegin(%i, %i)\n", workid, threadid);
-    DPRINTF(PseudoInst, "Successfully invoked some arbitrary event?");
     System *sys = tc->getSystemPtr();
     const System::Params &params = sys->params();
 
@@ -562,6 +562,20 @@ workbegin(ThreadContext *tc, uint64_t workid, uint64_t threadid)
             exitSimLoop("work started on specific cpu");
         }
     }
+
+    // TODO: either dump stats here or just
+    BaseCPU *baseCPU = tc->getCpuPtr();
+
+    if (baseCPU == nullptr) {
+        inform("baseCPU was nullptr\n");
+
+        return;
+    }
+
+    o3::CPU *o3CPU = dynamic_cast<o3::CPU *>(baseCPU);
+
+    DPRINTF(PseudoInst, "Changing DVFS level to %i\n", workid);
+    o3CPU->extChangeDVFSLevel(workid);
 }
 
 //

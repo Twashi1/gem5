@@ -111,6 +111,9 @@ CPU::DVFSStats::DVFSStats(CPU *cpu)
 void
 CPU::extDVFSCheck()
 {
+    // Disabling the memory-stall based DVS approach
+    return;
+
     if (scaleDelta == 0) {
         return;
     }
@@ -195,6 +198,68 @@ CPU::extScaleDVFSOnLoad(int delta)
     }
 
     scaleDelta += delta;
+}
+
+void
+CPU::extChangeDVFSLevel(int newLevel)
+{
+    dvfsStats.dvfsCallCount++;
+
+    auto *handler =
+        dynamic_cast<DVFSHandler *>(SimObject::find("board.dvfs_handler"));
+    assert(handler);
+
+    // Sanity check
+    // If we take as input a positive delta, we take this to mean move to a
+    // higher-energy state
+    // In Gem5, 0 is the highest energy state, thus positive delta -> negative,
+    // thus moving to lower index -> higher energy state
+
+    // TODO: is this a reasonable assumption
+    // Assume domain 0 is the CPU domain
+    DVFSHandler::DomainID dom = handler->domainID(0);
+
+    // Get current level and number of levels
+    uint32_t cur = handler->perfLevel(dom);
+    uint32_t max = handler->numPerfLevels(dom) - 1;
+
+    Tick clockPeriod = handler->clkPeriodAtPerfLevel(dom, cur);
+    double voltage = handler->voltageAtPerfLevel(dom, cur);
+    double cycles = (curTick() - (double)lastScaleTick) / (double)clockPeriod;
+    lastScaleTick = curTick();
+
+    double freq = (double)sim_clock::Frequency / (double)clockPeriod;
+
+    // inform("Level=%u freq=%f voltage=%f\n", cur, freq, voltage);
+
+    dvfsStats.totalTime += cycles;
+    dvfsStats.voltageTimeProduct += cycles * voltage;
+    dvfsStats.frequencyTimeProduct += cycles * freq;
+    // Average voltage, frequency is lazy-evaluated on dump-stats time
+
+    // Compute next level and clamp
+    int next = newLevel;
+
+    if (next < 0) {
+        next = 0;
+    }
+    if (next > static_cast<int>(max)) {
+        next = max;
+    }
+
+    if (next == cur) {
+        inform("Ignoring request, DVS level is the same");
+        return;
+    }
+
+    // We only want to actually change the DVFS after we accumulate
+    // 1. minimum, all the events for this tick
+    // 2. possibly, all the events for this cycle
+    // We have a simple counter summing up the scale up/down
+    // The DVFS handler then runs every cycle
+
+    // Request DVFS change
+    handler->perfLevel(dom, static_cast<DVFSHandler::PerfLevel>(next));
 }
 
 CPU::CPU(const BaseO3CPUParams &params)
